@@ -190,7 +190,7 @@ end
 function SpawnMesh(objectPath: string, objectName: string, objectTransform: Transform) -- yoinked from aa.modelviewer and slightly modified to use what i need to use :]
 	local baseDir = objectPath:match("^(.*)/[^/]+$") or ""
 
-	local ok, vertices, triangles, normals, uvs, _textures
+	local ok, vertices, triangles, normals, uvs, textures
 	if objectPath:lower():match("%.md$") then
 		local bytes = LuauFile.loadBytes(objectPath)
 		if #bytes == 0 then
@@ -205,14 +205,14 @@ function SpawnMesh(objectPath: string, objectName: string, objectTransform: Tran
 			end
 			return
 		end
-		ok, vertices, triangles, normals, uvs, _textures = pcall(Gltf.parseGlb, bytes, baseDir)
+		ok, vertices, triangles, normals, uvs, textures = pcall(Gltf.parseGlb, bytes, baseDir)
 	else
 		local text = LuauFile.loadText(objectPath)
 		if text == "" then
 			print("Failed to read " .. objectPath)
 			return
 		end
-		ok, vertices, triangles, normals, uvs, _textures = pcall(Gltf.parse, text, baseDir)
+		ok, vertices, triangles, normals, uvs, textures = pcall(Gltf.parse, text, baseDir)
 	end
 	if not ok then
 		-- on pcall failure the second value is the error message
@@ -233,6 +233,14 @@ function SpawnMesh(objectPath: string, objectName: string, objectTransform: Tran
 	mesh.triangles = triangles
 	mesh.normals = normals
 	mesh.uVs = uvs
+	if textures then
+		if textures.baseColor then
+			mesh.texture = LuauTexture.fromBytes(textures.baseColor)
+		end
+		if textures.normal then
+			mesh.normalTexture = LuauTexture.fromBytes(textures.normal)
+		end
+	end
 	mesh:draw()
 
 	local ObjectObject: Object = {
@@ -547,6 +555,21 @@ function onGui()
 				table.remove(LoadedObjects, selectedObject)
 				selectedObject = -1
 			end
+
+			Gui.sameLine()
+			if Gui.button(Icon.Copy .. "Duplicate Object") then
+				local currentObject = LoadedObjects[selectedObject]
+				local newTransform = Transform.new(
+					currentObject.Object.transform.position,
+					currentObject.Object.transform.rotation,
+					currentObject.Object.transform.scale
+				)
+				SpawnMesh(currentObject.Object.meshPath, currentObject.Object.name, newTransform)
+				local newObject = LoadedObjects[#LoadedObjects]
+				newObject.LuauMesh.color = currentObject.LuauMesh.color
+				selectedObject = #LoadedObjects
+			end
+
 			if #Folders ~= 0 then
 				Gui.separatorText("Folders")
 				for fi, f in ipairs(Folders) do
